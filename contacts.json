@@ -1,0 +1,15 @@
+[
+  {
+    "name": "John Doe",
+    "phoneNumber": "+1234567890",
+    "email": "john@example.com",
+    "isFavourite": true,
+    "contactType": "work"
+  },
+  {
+    "name": "Jane Smith",
+    "phoneNumber": "+9876543210",
+    "email": "jane@example.com",
+    "contactType": "personal"
+  }
+]
