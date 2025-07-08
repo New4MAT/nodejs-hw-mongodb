@@ -2,7 +2,7 @@
   "name": "nodejs-hw-02",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js"

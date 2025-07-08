@@ -1,7 +1,13 @@
 import { Contact } from '../models/contactModel.js';
 
 export const getAllContactsService = async () => {
-  return await Contact.find();
+  try {
+    const contacts = await Contact.find({});
+    return contacts;
+  } catch (error) {
+    console.error('Error in getAllContactsService:', error);
+    throw error;
+  }
 };
 
 export const getContactByIdService = async (id) => {
