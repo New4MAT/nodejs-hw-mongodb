@@ -19,7 +19,7 @@ export const setupServer = () => {
   // Глобальний обробник помилок - останній у ланцюжку
   app.use((err, req, res, next) => {
     const logger = pino(); // Ініціалізація логгера
-    logger.error(err.message); // Логування помилки
+    logger.error(err.message);
     res.status(500).json({ message: 'Internal server error' });
   });
 
