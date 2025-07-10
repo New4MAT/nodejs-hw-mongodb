@@ -1,27 +1,67 @@
 import express from 'express';
 import cors from 'cors';
 import contactsRouter from './routes/contactsRoutes.js';
+import pino from 'pino';
+import mongoose from 'mongoose';
 
-export const setupServer = () => {
-  const app = express();
+const logger = pino();
 
-  app.use(cors());
-  app.use(express.json());
+export const setupServer = async () => {
+  try {
+    const app = express();
 
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-    next();
-  });
+    // Middleware
+    app.use(cors());
+    app.use(express.json());
 
-  app.use('/contacts', contactsRouter);
+    // Logging
+    app.use((req, res, next) => {
+      logger.info(`${req.method} ${req.originalUrl}`);
+      next();
+    });
 
-  app.use((req, res) => {
-    console.error(`Route not found: ${req.method} ${req.path}`);
-    res.status(404).json({ message: 'Route not found' });
-  });
+    // Routes
+    app.use('/api/contacts', contactsRouter);
 
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+    // 404 Handler
+    app.use((req, res) => {
+      res.status(404).json({
+        status: 'error',
+        code: 404,
+        message: 'Not found',
+      });
+    });
+
+    // Error Handler
+    app.use((err, req, res, next) => {
+      logger.error(err.stack);
+      res.status(500).json({
+        status: 'error',
+        code: 500,
+        message: 'Internal server error',
+      });
+    });
+
+    const PORT = process.env.PORT || 3000;
+
+    const server = app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      logger.info('SIGTERM received. Shutting down gracefully');
+      server.close(() => {
+        mongoose.connection.close(false, () => {
+          logger.info('MongoDB connection closed');
+          process.exit(0);
+        });
+      });
+    });
+
+    return server;
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
 };
