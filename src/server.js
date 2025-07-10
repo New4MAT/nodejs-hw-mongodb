@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import contactsRouter from './routes/contactsRoutes.js';
-import pino from 'pino'; // Додано логгер (якщо використовується)
 
 export const setupServer = () => {
   const app = express();
@@ -9,18 +8,16 @@ export const setupServer = () => {
   app.use(cors());
   app.use(express.json());
 
-  app.use('/contacts', contactsRouter);
-
-  // Обробник 404 має бути перед обробником помилок
-  app.use((req, res) => {
-    res.status(404).json({ message: 'Not Found' });
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    next();
   });
 
-  // Глобальний обробник помилок - останній у ланцюжку
-  app.use((err, req, res, next) => {
-    const logger = pino(); // Ініціалізація логгера
-    logger.error(err.message);
-    res.status(500).json({ message: 'Internal server error' });
+  app.use('/contacts', contactsRouter);
+
+  app.use((req, res) => {
+    console.error(`Route not found: ${req.method} ${req.path}`);
+    res.status(404).json({ message: 'Route not found' });
   });
 
   const PORT = process.env.PORT || 3000;
