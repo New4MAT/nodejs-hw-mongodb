@@ -1,74 +1,152 @@
-import {
-  getAllContactsService,
-  getContactByIdService,
-} from '../services/contacts.js';
+import { Contact } from '../models/contactModel.js';
 import mongoose from 'mongoose';
+import pino from 'pino';
 
-export const getAllContactsController = async (req, res, next) => {
+const logger = pino();
+
+export const getContacts = async (req, res) => {
   try {
-    console.log('Starting to fetch all contacts');
-    const contacts = await getAllContactsService();
-
-    if (!contacts || contacts.length === 0) {
-      console.warn('No contacts found in database');
-      return res.status(404).json({
-        status: 404,
-        message: 'No contacts found',
-        data: [],
-      });
-    }
-
-    console.log(`Successfully fetched ${contacts.length} contacts`);
-    return res.status(200).json({
-      status: 200,
-      message: 'Successfully found contacts!',
+    const contacts = await Contact.find();
+    res.json({
+      status: 'success',
+      code: 200,
       data: contacts,
     });
   } catch (error) {
-    console.error('Error fetching contacts:', error);
-    return next({
-      status: 500,
-      message: 'Internal server error while fetching contacts',
-      details: error.message,
+    logger.error(error);
+    res.status(500).json({
+      status: 'error',
+      code: 500,
+      message: 'Server error',
     });
   }
 };
 
-export const getContactByIdController = async (req, res, next) => {
+export const getOneContact = async (req, res) => {
   try {
-    const { contactId } = req.params;
-    console.log(`Looking for contact with ID: ${contactId}`);
+    const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 400,
-        message: 'Invalid contact ID format',
-        details: `Received: ${contactId}`,
+        status: 'error',
+        code: 400,
+        message: 'Invalid ID format',
       });
     }
 
-    const contact = await getContactByIdService(contactId);
+    const contact = await Contact.findById(id);
 
     if (!contact) {
       return res.status(404).json({
-        status: 404,
-        message: 'Contact not found',
-        requestedId: contactId,
-        suggestion: 'Try GET /contacts to see available IDs',
+        status: 'error',
+        code: 404,
+        message: 'Not found',
       });
     }
 
-    return res.status(200).json({
-      status: 200,
-      message: `Successfully found contact with id ${contactId}!`,
+    res.json({
+      status: 'success',
+      code: 200,
       data: contact,
     });
   } catch (error) {
-    console.error('Find contact error:', error);
-    return next({
-      status: 500,
-      message: 'Internal server error',
-      details: error.message,
+    logger.error(error);
+    res.status(500).json({
+      status: 'error',
+      code: 500,
+      message: 'Server error',
+    });
+  }
+};
+
+export const createContact = async (req, res) => {
+  try {
+    const result = await Contact.create(req.body);
+    res.status(201).json({
+      status: 'success',
+      code: 201,
+      data: result,
+    });
+  } catch (error) {
+    logger.error(error);
+    res.status(400).json({
+      status: 'error',
+      code: 400,
+      message: error.message,
+    });
+  }
+};
+
+export const updateContactById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        code: 400,
+        message: 'Invalid ID format',
+      });
+    }
+
+    const result = await Contact.findByIdAndUpdate(id, req.body, { new: true });
+
+    if (!result) {
+      return res.status(404).json({
+        status: 'error',
+        code: 404,
+        message: 'Not found',
+      });
+    }
+
+    res.json({
+      status: 'success',
+      code: 200,
+      data: result,
+    });
+  } catch (error) {
+    logger.error(error);
+    res.status(500).json({
+      status: 'error',
+      code: 500,
+      message: 'Server error',
+    });
+  }
+};
+
+export const deleteContactById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        code: 400,
+        message: 'Invalid ID format',
+      });
+    }
+
+    const result = await Contact.findByIdAndDelete(id);
+
+    if (!result) {
+      return res.status(404).json({
+        status: 'error',
+        code: 404,
+        message: 'Not found',
+      });
+    }
+
+    res.json({
+      status: 'success',
+      code: 200,
+      data: { message: 'Contact deleted' },
+    });
+  } catch (error) {
+    logger.error(error);
+    res.status(500).json({
+      status: 'error',
+      code: 500,
+      message: 'Server error',
     });
   }
 };
