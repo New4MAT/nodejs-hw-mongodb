@@ -10,7 +10,7 @@ const logger = pino();
 const start = async () => {
   try {
     await initMongoConnection();
-    await setupServer();
+    setupServer();
   } catch (error) {
     logger.error('Failed to start application:', error);
     process.exit(1);
