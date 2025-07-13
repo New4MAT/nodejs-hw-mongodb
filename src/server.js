@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import contactsRouter from './routes/contactsRoutes.js';
+import { errorHandler } from './middlewares/errorHandler.js';
+import { notFoundHandler } from './middlewares/notFoundHandler.js';
 import pino from 'pino';
 
 const logger = pino();
@@ -21,22 +23,9 @@ export const setupServer = () => {
   // Routes
   app.use('/contacts', contactsRouter);
 
-  // 404 Handler
-  app.use((req, res) => {
-    res.status(404).json({
-      status: 404,
-      message: 'Not found',
-    });
-  });
-
-  // Error Handler
-  app.use((err, req, res, next) => {
-    logger.error(err.stack);
-    res.status(500).json({
-      status: 500,
-      message: 'Internal server error',
-    });
-  });
+  // Error handlers
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   const PORT = process.env.PORT || 3000;
   return app.listen(PORT, () => {
