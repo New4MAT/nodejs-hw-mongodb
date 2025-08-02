@@ -1,11 +1,6 @@
 import { Contact } from '../models/contactModel.js';
 import createError from 'http-errors';
-
-const formatResponse = (status, message, data = null) => ({
-  status,
-  message,
-  ...(data && { data }),
-});
+import { formatResponse } from '../utils/formatResponse.js';
 
 export const getContacts = async (req, res) => {
   try {
@@ -18,7 +13,7 @@ export const getContacts = async (req, res) => {
       isFavourite,
     } = req.query;
 
-    const filter = {};
+    const filter = { userId: req.user._id };
     if (contactType) filter.contactType = contactType;
     if (isFavourite) filter.isFavourite = isFavourite === 'true';
 
@@ -62,7 +57,7 @@ export const getContacts = async (req, res) => {
 export const getOneContact = async (req, res) => {
   try {
     const { id } = req.params;
-    const contact = await Contact.findById(id);
+    const contact = await Contact.findOne({ _id: id, userId: req.user._id });
     if (!contact) {
       throw createError(404, 'Contact not found');
     }
@@ -77,7 +72,7 @@ export const getOneContact = async (req, res) => {
 
 export const createContact = async (req, res) => {
   try {
-    const result = await Contact.create(req.body);
+    const result = await Contact.create({ ...req.body, userId: req.user._id });
     res.status(201).json({
       status: 201,
       message: 'Contact created successfully',
@@ -100,10 +95,14 @@ export const createContact = async (req, res) => {
 export const updateContactById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await Contact.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const result = await Contact.findOneAndUpdate(
+      { _id: id, userId: req.user._id },
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
 
     if (!result) {
       throw createError(404, 'Contact not found');
@@ -128,7 +127,10 @@ export const updateContactById = async (req, res) => {
 export const deleteContactById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await Contact.findByIdAndDelete(id);
+    const result = await Contact.findOneAndDelete({
+      _id: id,
+      userId: req.user._id,
+    });
     if (!result) {
       throw createError(404, 'Contact not found');
     }
