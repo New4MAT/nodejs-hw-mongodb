@@ -5,22 +5,9 @@ import {
   logoutUser,
   getCurrentUser,
 } from '../services/auth.js';
-import { formatResponse } from '../utils/formatResponse.js';
 
 export const register = async (req, res) => {
-  const { user, accessToken, refreshToken } = await registerUser(req.body);
-  res.status(201).json(
-    formatResponse(201, 'Successfully registered a user!', {
-      user,
-      accessToken,
-      refreshToken,
-    }),
-  );
-};
-
-export const login = async (req, res) => {
-  const { email, password } = req.body;
-  const { accessToken, refreshToken, user } = await loginUser(email, password);
+  const { user, refreshToken } = await registerUser(req.body);
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
@@ -29,12 +16,46 @@ export const login = async (req, res) => {
     secure: process.env.NODE_ENV === 'production',
   });
 
-  res.json(
-    formatResponse(200, 'Successfully logged in an user!', {
-      accessToken,
-      user,
-    }),
+  res.status(201).json({
+    status: 201,
+    message: 'Successfully registered a user!',
+    data: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+    },
+  });
+};
+
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  const { accessToken, refreshToken, sessionId } = await loginUser(
+    email,
+    password,
   );
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+  });
+
+  res.cookie('sessionId', sessionId, {
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+  });
+
+  res.json({
+    status: 200,
+    message: 'Successfully logged in an user!',
+    data: {
+      accessToken,
+    },
+  });
 };
 
 export const refresh = async (req, res) => {
@@ -50,11 +71,13 @@ export const refresh = async (req, res) => {
     secure: process.env.NODE_ENV === 'production',
   });
 
-  res.json(
-    formatResponse(200, 'Successfully refreshed a session!', {
+  res.json({
+    status: 200,
+    message: 'Successfully refreshed a session!',
+    data: {
       accessToken,
-    }),
-  );
+    },
+  });
 };
 
 export const logout = async (req, res) => {
@@ -67,5 +90,13 @@ export const logout = async (req, res) => {
 
 export const getCurrent = async (req, res) => {
   const user = await getCurrentUser(req.user._id);
-  res.json(formatResponse(200, 'Current user', { user }));
+  res.json({
+    status: 200,
+    message: 'Current user',
+    data: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+    },
+  });
 };

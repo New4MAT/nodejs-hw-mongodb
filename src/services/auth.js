@@ -47,7 +47,7 @@ export const registerUser = async (userData) => {
       email: newUser.email,
       createdAt: newUser.createdAt,
     },
-    ...tokens,
+    refreshToken: tokens.refreshToken,
   };
 };
 
@@ -65,7 +65,7 @@ export const loginUser = async (email, password) => {
   await Session.deleteMany({ userId: user._id });
   const tokens = generateTokens(user._id);
 
-  await Session.create({
+  const session = await Session.create({
     userId: user._id,
     ...tokens,
   });
@@ -73,11 +73,7 @@ export const loginUser = async (email, password) => {
   return {
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-    },
+    sessionId: session._id.toString(),
   };
 };
 
