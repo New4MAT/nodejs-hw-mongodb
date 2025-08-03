@@ -15,7 +15,14 @@ export const authenticate = async (req, res, next) => {
     }
 
     const { userId } = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      throw createError(401, 'Session ID is required');
+    }
+
     const session = await Session.findOne({
+      _id: sessionId,
       userId,
       accessToken: token,
       accessTokenValidUntil: { $gt: new Date() },
@@ -28,12 +35,6 @@ export const authenticate = async (req, res, next) => {
     req.user = { _id: userId };
     next();
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      next(createError(401, 'Access token expired'));
-    } else if (error.name === 'JsonWebTokenError') {
-      next(createError(401, 'Not authorized'));
-    } else {
-      next(error);
-    }
+    next(error);
   }
 };
