@@ -1,5 +1,7 @@
 import { body } from 'express-validator';
+import Joi from 'joi';
 
+// Express-validator схеми
 export const createContactSchema = [
   body('name')
     .trim()
@@ -43,3 +45,12 @@ export const updateContactSchema = [
     .isBoolean()
     .withMessage('isFavourite must be boolean'),
 ];
+
+// Joi схеми (якщо потрібні)
+export const joiContactSchema = Joi.object({
+  name: Joi.string().min(3).max(20).required(),
+  phoneNumber: Joi.string().min(3).max(20).required(),
+  email: Joi.string().email(),
+  contactType: Joi.string().valid('work', 'home', 'personal').required(),
+  isFavourite: Joi.boolean(),
+});

@@ -2,8 +2,23 @@ import { User } from '../models/userModel.js';
 import { Session } from '../models/sessionModel.js';
 import jwt from 'jsonwebtoken';
 import createError from 'http-errors';
+import { sendPasswordResetEmailMessage } from '../services/email.js';
+import bcrypt from 'bcrypt';
+import pino from 'pino';
 
-const generateTokens = (userId) => {
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:dd-mm-yyyy HH:MM:ss',
+      ignore: 'pid,hostname',
+    },
+  },
+});
+
+export const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_ACCESS_SECRET, {
     expiresIn: '15m',
   });
@@ -122,4 +137,93 @@ export const getCurrentUser = async (userId) => {
     throw createError(404, 'User not found');
   }
   return user;
+};
+
+export const sendResetPasswordEmail = async (email) => {
+  const user = await User.findOne({ email });
+  if (!user) {
+    logger.warn(`Password reset requested for non-existent email: ${email}`);
+    throw createError(404, 'User not found!');
+  }
+
+  console.log('Generating token for email:', email);
+
+  const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, {
+    expiresIn: '15m',
+  });
+
+  const resetLink = `${process.env.APP_DOMAIN}/reset-password?token=${resetToken}`;
+
+  try {
+    await sendPasswordResetEmailMessage(email, resetLink);
+    logger.info(`Reset password email sent to ${email}`);
+  } catch (error) {
+    logger.error(`Failed to send reset email to ${email}:`, error);
+    throw createError(500, 'Failed to send the email, please try again later.');
+  }
+
+  return {
+    status: 200,
+    message: 'Reset password email has been successfully sent.',
+    data: {},
+  };
+};
+
+export const resetPassword = async (token, newPassword) => {
+  let decoded;
+  try {
+    console.log('Verifying token:', token);
+    console.log('Using JWT_SECRET:', process.env.JWT_SECRET);
+
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Decoded token:', decoded);
+  } catch (error) {
+    console.error('Token verification error:', error);
+
+    if (error.name === 'TokenExpiredError') {
+      throw createError(
+        401,
+        'Token is expired. Please request a new password reset link.',
+      );
+    }
+    if (error.name === 'JsonWebTokenError') {
+      throw createError(
+        401,
+        'Token is invalid. Please check the token and try again.',
+      );
+    }
+    throw createError(401, 'Token verification failed');
+  }
+
+  try {
+    const user = await User.findOne({ email: decoded.email });
+    if (!user) {
+      logger.warn(`User not found for email: ${decoded.email}`);
+      throw createError(404, 'User not found!');
+    }
+
+    // Check if new password is different from current
+    const isSamePassword = await user.checkPassword(newPassword);
+    if (isSamePassword) {
+      throw createError(
+        400,
+        'New password must be different from current password',
+      );
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    await Session.deleteMany({ userId: user._id });
+    logger.info(`Password successfully reset for user: ${user._id}`);
+
+    return {
+      status: 200,
+      message: 'Password has been successfully reset.',
+      data: {},
+    };
+  } catch (error) {
+    logger.error('Password reset failed:', error);
+    throw error;
+  }
 };

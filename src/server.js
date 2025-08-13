@@ -7,13 +7,19 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import { notFoundHandler } from './middlewares/notFoundHandler.js';
 import pino from 'pino';
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+console.log('Current .env path:', path.join(__dirname, '.env'));
 
 const logger = pino();
 
 export const setupServer = () => {
   const app = express();
 
-  // Підключення до MongoDB
+  // MongoDB connection
   mongoose
     .connect(
       `mongodb+srv://${process.env.MONGODB_USER}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_URL}/${process.env.MONGODB_DB}`,
@@ -30,8 +36,9 @@ export const setupServer = () => {
   );
   app.use(cookieParser());
   app.use(express.json());
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-  // Логування запитів
+  // Request logging
   app.use((req, res, next) => {
     logger.info({
       method: req.method,
@@ -41,11 +48,11 @@ export const setupServer = () => {
     next();
   });
 
-  // Маршрути (без /api префікса)
+  // Routes
   app.use('/contacts', contactsRouter);
   app.use('/auth', authRouter);
 
-  // Health check
+  // Health check endpoint
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: 'OK',
@@ -56,7 +63,7 @@ export const setupServer = () => {
     });
   });
 
-  // Обробка помилок
+  // Error handlers
   app.use(notFoundHandler);
   app.use(errorHandler);
 
@@ -69,8 +76,11 @@ export const setupServer = () => {
     logger.info('- POST /auth/refresh');
     logger.info('- POST /auth/logout');
     logger.info('- GET /auth/current');
+    logger.info('- POST /auth/send-reset-email');
+    logger.info('- POST /auth/reset-pwd');
     logger.info('- GET /contacts');
     logger.info('- POST /contacts');
+    logger.info('- PATCH /contacts/:id');
   });
 
   return server;

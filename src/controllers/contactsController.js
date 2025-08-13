@@ -1,6 +1,8 @@
 import { Contact } from '../models/contactModel.js';
 import createError from 'http-errors';
 import { formatResponse } from '../utils/formatResponse.js';
+import { uploadImage } from '../services/cloudinary.js';
+import fs from 'fs/promises';
 
 export const getContacts = async (req, res) => {
   try {
@@ -72,7 +74,19 @@ export const getOneContact = async (req, res) => {
 
 export const createContact = async (req, res) => {
   try {
-    const result = await Contact.create({ ...req.body, userId: req.user._id });
+    let photoUrl = null;
+
+    if (req.file) {
+      photoUrl = await uploadImage(req.file.path);
+      await fs.unlink(req.file.path);
+    }
+
+    const result = await Contact.create({
+      ...req.body,
+      photo: photoUrl,
+      userId: req.user._id,
+    });
+
     res.status(201).json({
       status: 201,
       message: 'Contact created successfully',
@@ -95,13 +109,18 @@ export const createContact = async (req, res) => {
 export const updateContactById = async (req, res) => {
   try {
     const { id } = req.params;
+    let updateData = { ...req.body };
+
+    if (req.file) {
+      const photoUrl = await uploadImage(req.file.path);
+      await fs.unlink(req.file.path);
+      updateData.photo = photoUrl;
+    }
+
     const result = await Contact.findOneAndUpdate(
       { _id: id, userId: req.user._id },
-      req.body,
-      {
-        new: true,
-        runValidators: true,
-      },
+      updateData,
+      { new: true, runValidators: true },
     );
 
     if (!result) {
