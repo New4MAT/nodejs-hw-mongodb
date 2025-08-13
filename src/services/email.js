@@ -20,10 +20,6 @@ const smtpConfig = {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASSWORD, // Ключ береться тільки з змінних оточення
   },
-  tls: {
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1.2',
-  },
 };
 
 // Логуємо конфіг без пароля
