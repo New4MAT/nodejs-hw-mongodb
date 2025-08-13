@@ -6,23 +6,30 @@ import {
   refresh,
   logout,
   getCurrent,
+  sendResetEmail,
+  resetPwd,
 } from '../controllers/auth.js';
 import { validateBody } from '../middlewares/validateBody.js';
-import { registerSchema, loginSchema } from '../schemas/authSchemas.js';
+import {
+  registerSchema,
+  loginSchema,
+  requestResetEmailSchema,
+  resetPwdSchema,
+} from '../schemas/authSchemas.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { rateLimit } from 'express-rate-limit';
 
 const router = express.Router();
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 requests per window
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Маршрути залишаються без змін, але тепер доступні без /api
+// Auth routes
 router.post(
   '/register',
   authLimiter,
@@ -42,5 +49,14 @@ router.post('/refresh', authLimiter, ctrlWrapper(refresh));
 router.post('/logout', authLimiter, authenticate, ctrlWrapper(logout));
 
 router.get('/current', authenticate, ctrlWrapper(getCurrent));
+
+// Password reset routes
+router.post(
+  '/send-reset-email',
+  validateBody(requestResetEmailSchema),
+  ctrlWrapper(sendResetEmail),
+);
+
+router.post('/reset-pwd', validateBody(resetPwdSchema), ctrlWrapper(resetPwd));
 
 export default router;
