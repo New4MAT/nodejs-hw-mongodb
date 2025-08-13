@@ -8,45 +8,44 @@ import createError from 'http-errors';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-console.log('Current .env path:', path.join(__dirname, '.env'));
 
 const logger = pino();
 
-const transporter = nodemailer.createTransport({
+// SMTP configuration - все через process.env
+const smtpConfig = {
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
+    pass: process.env.SMTP_PASSWORD, // Ключ береться тільки з змінних оточення
   },
   tls: {
     rejectUnauthorized: false,
     minVersion: 'TLSv1.2',
   },
-  logger: true,
-  debug: true,
+};
+
+// Логуємо конфіг без пароля
+logger.info('Initializing SMTP transporter with config: %j', {
+  ...smtpConfig,
+  auth: { ...smtpConfig.auth, pass: '***' }, // Приховуємо пароль в логах
 });
 
-console.log('Full SMTP config:', {
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  user: process.env.SMTP_USER,
-  pass: process.env.SMTP_PASSWORD ? '***' : 'NOT SET', // Не показуємо пароль
-  from: process.env.SMTP_FROM,
-});
+const transporter = nodemailer.createTransport(smtpConfig);
 
-// Verify connection configuration
-transporter.verify((error, success) => {
+// Перевірка підключення
+transporter.verify((error) => {
   if (error) {
-    logger.error('SMTP Connection Error:', error);
+    logger.error('SMTP connection failed: %s', error.message);
   } else {
-    logger.info('SMTP Server is ready to send messages');
+    logger.info('SMTP connection established successfully');
   }
 });
 
 export const sendPasswordResetEmailMessage = async (email, resetLink) => {
   try {
+    // Завантажуємо HTML шаблон
     const templatePath = path.join(
       __dirname,
       '../templates/reset-password.html',
@@ -54,26 +53,37 @@ export const sendPasswordResetEmailMessage = async (email, resetLink) => {
     const templateContent = await fs.readFile(templatePath, 'utf-8');
     const template = handlebars.compile(templateContent);
 
+    // Генеруємо HTML листа
     const html = template({
       resetLink,
       appDomain: process.env.APP_DOMAIN,
     });
 
+    // Налаштування листа
     const mailOptions = {
       from: `"Password Reset" <${process.env.SMTP_FROM}>`,
       to: email,
       subject: 'Password Reset Request',
       html,
+      headers: {
+        'X-Mailer': 'Node.js',
+        'X-Priority': '1',
+      },
     };
 
-    logger.info('Sending email with options:', mailOptions);
+    logger.info('Sending password reset email to %s', email);
 
+    // Відправляємо лист
     const info = await transporter.sendMail(mailOptions);
-    logger.info('Email sent:', info.response);
+    logger.debug('Email sent: %j', {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+    });
 
-    logger.info(`Password reset email sent to ${email}`);
+    return info;
   } catch (error) {
-    logger.error(`Failed to send email to ${email}:`, error);
+    logger.error('Failed to send password reset email: %s', error.message);
     throw createError(500, 'Failed to send the email, please try again later.');
   }
 };
