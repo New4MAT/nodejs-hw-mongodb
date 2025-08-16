@@ -1,27 +1,21 @@
 import { config } from 'dotenv';
 import path from 'path';
 import dotenv from 'dotenv';
-dotenv.config({ path: '.env', debug: true });
-
-// Шлях до .env файлу (абсолютний)
-const envPath = path.resolve(process.cwd(), '.env');
-
-// Завантаження з debug-логом
-config({ path: envPath, debug: true });
-
-console.log('Перевірка змінних оточення:');
-console.log('SMTP_HOST:', process.env.SMTP_HOST ? 'Завантажено' : 'Відсутній');
-console.log('Шлях до .env:', envPath);
-console.log('Loaded SMTP_HOST:', process.env.SMTP_HOST);
-console.log('All env vars:', process.env);
-
 import { initMongoConnection } from './db/initMongoConnection.js';
 import { setupServer } from './server.js';
 import pino from 'pino';
 import mongoose from 'mongoose';
+import { verifySMTPConnection } from './services/email.js'; // Тепер імпорт має працювати
+
+// Ініціалізація змінних оточення
+dotenv.config({ path: '.env', debug: true });
+
+const envPath = path.resolve(process.cwd(), '.env');
+config({ path: envPath, debug: true });
 
 const logger = pino();
 
+// Перевірка обов'язкових змінних оточення
 const requiredEnvVars = [
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
@@ -52,8 +46,15 @@ requiredEnvVars.forEach((envVar) => {
 const start = async () => {
   try {
     await initMongoConnection();
+
+    // Перевірка SMTP з'єднання
+    const smtpReady = await verifySMTPConnection();
+    if (!smtpReady) {
+      logger.warn('SMTP connection failed - email functionality disabled');
+    }
+
     setupServer();
-    logger.info(`Application started on port ${process.env.PORT}`);
+    logger.info(`Server started on port ${process.env.PORT}`);
   } catch (error) {
     logger.error('Application startup failed:', error);
     process.exit(1);
