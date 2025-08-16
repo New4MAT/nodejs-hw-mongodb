@@ -1,7 +1,6 @@
 import { body } from 'express-validator';
 import Joi from 'joi';
 
-// Express-validator schemas
 export const registerSchema = [
   body('name')
     .trim()
@@ -9,14 +8,12 @@ export const registerSchema = [
     .withMessage('Name is required')
     .isLength({ min: 3, max: 30 })
     .withMessage('Name must be 3-30 characters'),
-
   body('email')
     .trim()
     .notEmpty()
     .withMessage('Email is required')
     .isEmail()
     .withMessage('Invalid email format'),
-
   body('password')
     .trim()
     .notEmpty()
@@ -32,11 +29,9 @@ export const loginSchema = [
     .withMessage('Email is required')
     .isEmail()
     .withMessage('Invalid email format'),
-
   body('password').trim().notEmpty().withMessage('Password is required'),
 ];
 
-// Joi schemas
 export const requestResetEmailSchema = Joi.object({
   email: Joi.string().email().required().messages({
     'string.email': 'Please provide a valid email address',
