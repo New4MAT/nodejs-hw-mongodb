@@ -124,6 +124,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Contacts API is running!',
+    endpoints: {
+      auth: '/auth',
+      contacts: '/contacts',
+      health: '/health',
+    },
+  });
+});
+
 // Обробка неіснуючих маршрутів
 app.use(notFoundHandler);
 
