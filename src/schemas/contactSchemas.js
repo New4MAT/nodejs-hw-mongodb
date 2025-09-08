@@ -44,9 +44,9 @@ export const updateContactSchema = [
     .optional()
     .isBoolean()
     .withMessage('isFavourite must be boolean'),
+  body('photo').optional().isString(),
 ];
 
-// Joi схеми (якщо потрібні)
 export const joiContactSchema = Joi.object({
   name: Joi.string().min(3).max(20).required(),
   phoneNumber: Joi.string().min(3).max(20).required(),

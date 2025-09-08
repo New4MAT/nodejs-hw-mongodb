@@ -36,60 +36,87 @@ export const generateTokens = (userId) => {
 };
 
 export const registerUser = async (userData) => {
+  console.log('Registering user with data:', userData);
   const { email, password } = userData;
 
   if (!email || !password) {
     throw createError(400, 'Email and password are required');
   }
 
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    throw createError(409, 'Email already in use');
+  try {
+    console.log('Checking for existing user...');
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      console.log('User already exists:', existingUser);
+      throw createError(409, 'Email already in use');
+    }
+
+    console.log('Creating new user...');
+    const newUser = await User.create(userData);
+    console.log('User created:', newUser);
+
+    const tokens = generateTokens(newUser._id);
+    console.log('Tokens generated:', tokens);
+
+    await Session.create({
+      userId: newUser._id,
+      ...tokens,
+    });
+
+    return {
+      user: {
+        _id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        createdAt: newUser.createdAt,
+      },
+      refreshToken: tokens.refreshToken,
+    };
+  } catch (error) {
+    console.error('Registration error:', error);
+    throw error;
   }
-
-  const newUser = await User.create(userData);
-  const tokens = generateTokens(newUser._id);
-
-  await Session.create({
-    userId: newUser._id,
-    ...tokens,
-  });
-
-  return {
-    user: {
-      _id: newUser._id,
-      name: newUser.name,
-      email: newUser.email,
-      createdAt: newUser.createdAt,
-    },
-    refreshToken: tokens.refreshToken,
-  };
 };
 
 export const loginUser = async (email, password) => {
-  const user = await User.findOne({ email });
-  if (!user) {
-    throw createError(401, 'Invalid email or password');
+  try {
+    console.log('Searching for user:', email);
+    const user = await User.findOne({ email }).select('+password');
+
+    if (!user) {
+      console.log('User not found');
+      throw new Error('Invalid email or password');
+    }
+
+    console.log('Checking password...');
+    const isPasswordValid = await user.checkPassword(password);
+
+    if (!isPasswordValid) {
+      console.log('Invalid password');
+      throw new Error('Invalid email or password');
+    }
+
+    console.log('Creating session...');
+    await Session.deleteMany({ userId: user._id });
+    const tokens = generateTokens(user._id);
+    const session = await Session.create({
+      userId: user._id,
+      ...tokens,
+    });
+
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      sessionId: session._id.toString(),
+    };
+  } catch (error) {
+    console.error('Login error details:', {
+      message: error.message,
+      stack: error.stack,
+      email: email,
+    });
+    throw error;
   }
-
-  const isPasswordValid = await user.checkPassword(password);
-  if (!isPasswordValid) {
-    throw createError(401, 'Invalid email or password');
-  }
-
-  await Session.deleteMany({ userId: user._id });
-  const tokens = generateTokens(user._id);
-
-  const session = await Session.create({
-    userId: user._id,
-    ...tokens,
-  });
-
-  return {
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
-    sessionId: session._id.toString(),
-  };
 };
 
 export const refreshSession = async (refreshToken) => {

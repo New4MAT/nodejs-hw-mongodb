@@ -1,22 +1,18 @@
+import createError from 'http-errors';
 import pino from 'pino';
+
 const logger = pino();
 
-export const errorHandler = (err, req, res, next) => {
-  logger.error(err.stack || err.message);
+export const notFoundHandler = (req, res, next) => {
+  next(createError(404, 'Route not found'));
+};
 
-  if (err.status === 400 && err.errors) {
-    return res.status(400).json({
-      status: 400,
-      message: err.message || 'Validation failed',
-      errors: err.errors,
-      data: null,
-    });
-  }
+export const errorHandler = (err, req, res, next) => {
+  logger.error(err);
 
   res.status(err.status || 500).json({
     status: err.status || 500,
-    message: err.message || 'Something went wrong',
-    data: err.data || null,
-    ...(err.errors && { errors: err.errors }),
+    message: err.message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };

@@ -6,7 +6,6 @@ import mongoose from 'mongoose';
 export const validateBody = (schema) => {
   return async (req, res, next) => {
     try {
-      // Якщо схема - масив (express-validator)
       if (Array.isArray(schema)) {
         await Promise.all(schema.map((validation) => validation.run(req)));
         const errors = validationResult(req);
@@ -24,16 +23,12 @@ export const validateBody = (schema) => {
             }),
           );
         }
-      }
-      // Якщо схема - об'єкт Joi
-      else if (schema && typeof schema.validate === 'function') {
+      } else if (schema && typeof schema.validate === 'function') {
         const { error } = schema.validate(req.body);
         if (error) {
           throw createError(400, error.details[0].message);
         }
-      }
-      // Невідомий тип схеми
-      else {
+      } else {
         throw new Error('Invalid schema type provided to validateBody');
       }
 

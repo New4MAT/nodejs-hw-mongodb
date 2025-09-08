@@ -1,87 +1,241 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import contactsRouter from './routes/contactsRoutes.js';
-import authRouter from './routes/auth.js';
-import { errorHandler } from './middlewares/errorHandler.js';
-import { notFoundHandler } from './middlewares/notFoundHandler.js';
-import pino from 'pino';
 import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import pino from 'pino';
 
+// Імпорт роутів
+import authRouter from './routes/auth.js';
+import contactsRouter from './routes/contactsRoutes.js';
+
+// Імпорт мідлварів
+import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
+
+// Ініціалізація шляхів
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-console.log('Current .env path:', path.join(__dirname, '.env'));
 
-const logger = pino();
+// Завантаження змінних оточення
+dotenv.config({ path: path.join(__dirname, '.env') });
 
-export const setupServer = () => {
-  const app = express();
+// Конфігурація логера
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:dd-mm-yyyy HH:MM:ss',
+      ignore: 'pid,hostname',
+    },
+  },
+});
 
-  // MongoDB connection
-  mongoose
-    .connect(
-      `mongodb+srv://${process.env.MONGODB_USER}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_URL}/${process.env.MONGODB_DB}`,
-    )
-    .then(() => logger.info('Database connected'))
-    .catch((err) => logger.error('Database connection error:', err));
+// Перевірка обов'язкових змінних оточення
+const requiredEnvVars = [
+  'MONGODB_USER',
+  'MONGODB_PASSWORD',
+  'MONGODB_URL',
+  'MONGODB_DB',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'CLIENT_URL',
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_USER',
+  'SMTP_PASSWORD',
+  'SMTP_FROM',
+  'JWT_SECRET',
+  'APP_DOMAIN',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+];
 
-  // Middleware
-  app.use(
-    cors({
-      origin: process.env.CLIENT_URL,
-      credentials: true,
-    }),
-  );
-  app.use(cookieParser());
-  app.use(express.json());
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+requiredEnvVars.forEach((varName) => {
+  if (!process.env[varName]) {
+    logger.error(`Missing required environment variable: ${varName}`);
+    process.exit(1);
+  }
+});
 
-  // Request logging
-  app.use((req, res, next) => {
-    logger.info({
-      method: req.method,
-      url: req.originalUrl,
-      ip: req.ip,
+// Підключення до MongoDB
+const connectDB = async () => {
+  try {
+    const uri = `mongodb+srv://${process.env.MONGODB_USER}:${encodeURIComponent(
+      process.env.MONGODB_PASSWORD,
+    )}@${process.env.MONGODB_URL}/${
+      process.env.MONGODB_DB
+    }?retryWrites=true&w=majority`;
+
+    logger.info('Connecting to MongoDB...');
+
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
     });
-    next();
-  });
 
-  // Routes
-  app.use('/contacts', contactsRouter);
-  app.use('/auth', authRouter);
+    logger.info('✅ MongoDB connected successfully');
 
-  // Health check endpoint
-  app.get('/health', (req, res) => {
-    res.status(200).json({
-      status: 'OK',
-      env: {
-        CLIENT_URL: process.env.CLIENT_URL,
-        NODE_ENV: process.env.NODE_ENV,
-      },
+    mongoose.connection.on('error', (err) => {
+      logger.error(`MongoDB connection error: ${err.message}`);
     });
-  });
 
-  // Error handlers
-  app.use(notFoundHandler);
-  app.use(errorHandler);
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('MongoDB disconnected');
+    });
 
-  const PORT = process.env.PORT || 3000;
-  const server = app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-    logger.info('Available routes:');
-    logger.info('- POST /auth/register');
-    logger.info('- POST /auth/login');
-    logger.info('- POST /auth/refresh');
-    logger.info('- POST /auth/logout');
-    logger.info('- GET /auth/current');
-    logger.info('- POST /auth/send-reset-email');
-    logger.info('- POST /auth/reset-pwd');
-    logger.info('- GET /contacts');
-    logger.info('- POST /contacts');
-    logger.info('- PATCH /contacts/:id');
-  });
-
-  return server;
+    mongoose.connection.on('connected', () => {
+      logger.info('MongoDB connected');
+    });
+  } catch (err) {
+    logger.error(`❌ MongoDB connection failed: ${err.message}`);
+    logger.error('Connection error details:', err);
+    process.exit(1);
+  }
 };
+
+// Ініціалізація Express додатку
+const app = express();
+
+// Middleware
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }),
+);
+
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Логування запитів
+app.use((req, res, next) => {
+  logger.info({
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+  });
+  next();
+});
+
+// Додаткове логування тіла запиту для debug
+app.use((req, res, next) => {
+  if (req.method === 'POST' || req.method === 'PUT') {
+    logger.debug('Request body:', req.body);
+  }
+  next();
+});
+
+// Підключення роутів
+app.use('/auth', authRouter);
+app.use('/contacts', contactsRouter);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const dbStatus =
+    mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    database: {
+      status: dbStatus,
+      readyState: mongoose.connection.readyState,
+      name: mongoose.connection.name,
+      host: mongoose.connection.host,
+    },
+    environment: process.env.NODE_ENV,
+  });
+});
+
+// Обробка неіснуючих маршрутів
+app.use(notFoundHandler);
+
+// Глобальний обробник помилок
+app.use(errorHandler);
+
+// Функція запуску сервера
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    if (mongoose.connection.readyState !== 1) {
+      logger.error('MongoDB connection not established. Exiting...');
+      process.exit(1);
+    }
+
+    const PORT = process.env.PORT || 3000;
+    const server = app.listen(PORT, () => {
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`🌐 Client URL: ${process.env.CLIENT_URL}`);
+      logger.info(`🗄️  Database: ${process.env.MONGODB_DB}`);
+      logger.info('Available routes:');
+      logger.info('- POST /auth/register');
+      logger.info('- POST /auth/login');
+      logger.info('- GET /auth/current');
+      logger.info('- POST /auth/logout');
+      logger.info('- POST /auth/refresh');
+      logger.info('- POST /auth/send-reset-email');
+      logger.info('- POST /auth/reset-pwd');
+      logger.info('- GET /contacts');
+      logger.info('- POST /contacts');
+      logger.info('- PATCH /contacts/:id');
+      logger.info('- GET /health (health check)');
+    });
+
+    const gracefulShutdown = async (signal) => {
+      logger.info(`🛑 Received ${signal}, closing server...`);
+
+      server.close(async () => {
+        logger.info('✅ Server closed');
+
+        if (mongoose.connection.readyState === 1) {
+          await mongoose.connection.close();
+          logger.info('✅ MongoDB connection closed');
+        }
+
+        logger.info('✅ Process exited gracefully');
+        process.exit(0);
+      });
+
+      // Таймаут для форсованого завершення
+      setTimeout(() => {
+        logger.error(
+          '❌ Could not close connections in time, forcefully shutting down',
+        );
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      process.exit(1);
+    });
+
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught Exception:', error);
+      process.exit(1);
+    });
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Запуск сервера
+startServer();
+
+// Експорт для тестування
+export { app, connectDB };
