@@ -6,36 +6,42 @@ const userSchema = new mongoose.Schema(
     name: {
       type: String,
       required: [true, 'Name is required'],
+      trim: true,
     },
     email: {
       type: String,
       required: [true, 'Email is required'],
       unique: true,
-      validate: {
-        validator: (v) => /^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[\w-]{2,4}$/.test(v),
-        message: (props) => `${props.value} is not a valid email!`,
-      },
+      lowercase: true,
     },
     password: {
       type: String,
       required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      select: false, // Важливо: це приховує пароль за замовчуванням
     },
   },
   {
     timestamps: true,
-    versionKey: false,
   },
 );
 
+// Хук для хешування пароля перед збереженням
 userSchema.pre('save', async function (next) {
+  // Хешуємо пароль тільки якщо він був змінений
   if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
+
+  try {
+    const saltRounds = 12;
+    this.password = await bcrypt.hash(this.password, saltRounds);
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
-userSchema.methods.checkPassword = async function (password) {
-  return await bcrypt.compare(password, this.password);
+// Метод для порівняння паролів
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 export const User = mongoose.model('User', userSchema);

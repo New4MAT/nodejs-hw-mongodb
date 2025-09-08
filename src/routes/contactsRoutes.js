@@ -39,6 +39,7 @@ router.post(
 );
 router.patch(
   '/:id',
+  authenticate,
   isValidId,
   upload.single('photo'),
   validateBody(updateContactSchema),

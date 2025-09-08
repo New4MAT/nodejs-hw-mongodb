@@ -72,20 +72,51 @@ export const getOneContact = async (req, res) => {
   }
 };
 
-export const createContact = async (req, res) => {
+export const createContact = async (req, res, next) => {
   try {
+    console.log('=== CREATE CONTACT STARTED ===');
+    console.log('📝 Request body:', JSON.stringify(req.body, null, 2));
+    console.log(
+      '📁 File received:',
+      req.file
+        ? {
+            originalname: req.file.originalname,
+            size: req.file.size,
+            mimetype: req.file.mimetype,
+            path: req.file.path,
+          }
+        : 'No file',
+    );
+
     let photoUrl = null;
 
     if (req.file) {
-      photoUrl = await uploadImage(req.file.path);
-      await fs.unlink(req.file.path);
+      try {
+        console.log('☁️ Starting image upload...');
+        photoUrl = await uploadImage(req.file.path);
+        console.log('✅ Image uploaded successfully:', photoUrl);
+      } catch (uploadError) {
+        console.error('❌ Image upload failed:', uploadError.message);
+        try {
+          await fs.unlink(req.file.path);
+          console.log('✅ Temporary file cleaned up');
+        } catch (unlinkError) {
+          console.warn('⚠️ Cleanup failed:', unlinkError.message);
+        }
+        throw createError(500, 'Failed to upload image');
+      }
     }
 
-    const result = await Contact.create({
+    console.log('💾 Creating contact in database...');
+    const contactData = {
       ...req.body,
       photo: photoUrl,
       userId: req.user._id,
-    });
+    };
+    console.log('📋 Contact data:', contactData);
+
+    const result = await Contact.create(contactData);
+    console.log('✅ Contact created successfully:', result._id);
 
     res.status(201).json({
       status: 201,
@@ -93,6 +124,9 @@ export const createContact = async (req, res) => {
       data: result,
     });
   } catch (error) {
+    console.error('🔥 CREATE CONTACT ERROR:', error.message);
+    console.error('Error stack:', error.stack);
+
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map((err) => ({
         field: err.path,
@@ -100,6 +134,7 @@ export const createContact = async (req, res) => {
       }));
       throw createError(400, 'Validation failed', { errors });
     }
+
     throw createError(500, 'Failed to create contact', {
       details: error.message,
     });
@@ -108,14 +143,67 @@ export const createContact = async (req, res) => {
 
 export const updateContactById = async (req, res) => {
   try {
+    console.log('=== UPDATE CONTACT STARTED ===');
+    console.log('📝 Request params:', req.params);
+    console.log('👤 User ID:', req.user._id);
+    console.log('📦 Request body:', JSON.stringify(req.body, null, 2));
+    console.log(
+      '📁 File received:',
+      req.file
+        ? {
+            originalname: req.file.originalname,
+            size: req.file.size,
+            mimetype: req.file.mimetype,
+            path: req.file.path,
+          }
+        : 'No file',
+    );
+
     const { id } = req.params;
     let updateData = { ...req.body };
 
     if (req.file) {
-      const photoUrl = await uploadImage(req.file.path);
-      await fs.unlink(req.file.path);
-      updateData.photo = photoUrl;
+      console.log('🔍 Checking file accessibility...');
+      try {
+        const fileStats = await fs.stat(req.file.path);
+        console.log('✅ File stats:', {
+          size: fileStats.size,
+          isFile: fileStats.isFile(),
+          readable: true,
+        });
+
+        if (fileStats.size === 0) {
+          console.log('❌ File is empty');
+          throw createError(400, 'Uploaded file is empty');
+        }
+
+        console.log('☁️ Starting Cloudinary upload...');
+        const photoUrl = await uploadImage(req.file.path);
+        console.log('✅ Cloudinary upload successful:', photoUrl);
+
+        updateData.photo = photoUrl;
+
+        try {
+          await fs.unlink(req.file.path);
+          console.log('✅ Temporary file deleted');
+        } catch (unlinkError) {
+          console.warn('⚠️ Failed to delete temp file:', unlinkError.message);
+        }
+      } catch (fileError) {
+        console.error('❌ File processing error:', fileError.message);
+        if (req.file?.path) {
+          try {
+            await fs.unlink(req.file.path);
+          } catch (unlinkError) {
+            console.warn('Cleanup failed:', unlinkError.message);
+          }
+        }
+        throw createError(500, 'Failed to process uploaded file');
+      }
     }
+
+    console.log('💾 Updating contact in database...');
+    console.log('📋 Final update data:', updateData);
 
     const result = await Contact.findOneAndUpdate(
       { _id: id, userId: req.user._id },
@@ -123,12 +211,19 @@ export const updateContactById = async (req, res) => {
       { new: true, runValidators: true },
     );
 
+    console.log('✅ Database update result:', result);
+
     if (!result) {
+      console.log('❌ Contact not found or access denied');
       throw createError(404, 'Contact not found');
     }
 
+    console.log('✅ UPDATE COMPLETED SUCCESSFULLY');
     res.json(formatResponse(200, 'Contact updated', result));
   } catch (error) {
+    console.error('🔥 UPDATE ERROR:', error.message);
+    console.error('Error stack:', error.stack);
+
     if (error.status === 404) throw error;
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map((err) => ({
