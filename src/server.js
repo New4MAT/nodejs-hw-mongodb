@@ -13,6 +13,19 @@ import contactsRouter from './routes/contactsRoutes.js';
 
 // Імпорт мідлварів
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
+import fs from 'fs/promises';
+
+async function createTmpDir() {
+  try {
+    await fs.access('tmp');
+  } catch {
+    await fs.mkdir('tmp', { recursive: true });
+  }
+}
+
+createTmpDir().then(() => {
+  console.log('Tmp directory ready');
+});
 
 // Ініціалізація шляхів
 const __filename = fileURLToPath(import.meta.url);

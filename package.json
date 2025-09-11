@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "predev": "if not exist tmp mkdir tmp",
     "dev": "nodemon src/index.js",
-    "prestart": "if not exist tmp mkdir tmp",
     "start": "node src/index.js"
   },
   "dependencies": {
