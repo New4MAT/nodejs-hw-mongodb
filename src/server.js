@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import pino from 'pino';
+import fs from 'fs';
+import swaggerUi from 'swagger-ui-express';
 
 // Імпорт роутів
 import authRouter from './routes/auth.js';
@@ -13,7 +15,6 @@ import contactsRouter from './routes/contactsRoutes.js';
 
 // Імпорт мідлварів
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
-import fs from 'fs/promises';
 
 async function createTmpDir() {
   try {
@@ -30,6 +31,8 @@ createTmpDir().then(() => {
 // Ініціалізація шляхів
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+console.log('🔍 Current working directory:', process.cwd());
+console.log('🔍 __dirname:', __dirname);
 
 // Завантаження змінних оточення
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -148,6 +151,91 @@ app.use((req, res, next) => {
   next();
 });
 
+// Додайте тестовий маршрут прямо перед Swagger UI
+app.get('/test-swagger', (req, res) => {
+  console.log('✅ Test route called');
+  res.json({
+    message: 'Test route works',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Налаштування Swagger UI
+try {
+  const swaggerPath = path.join(__dirname, '..', 'docs', 'swagger.json');
+  console.log('🔍 Looking for swagger.json at:', swaggerPath);
+  console.log('🔍 Absolute path:', path.resolve(swaggerPath));
+
+  if (!fs.existsSync(swaggerPath)) {
+    console.log('❌ swagger.json not found at:', swaggerPath);
+
+    // Перевіримо чи існує батьківська директорія
+    const parentDir = path.dirname(swaggerPath);
+    console.log('🔍 Parent directory exists:', fs.existsSync(parentDir));
+
+    if (fs.existsSync(parentDir)) {
+      const files = fs.readdirSync(parentDir);
+      console.log('📋 Files in parent directory:', files);
+    }
+
+    throw new Error('swagger.json file not found');
+  }
+
+  const swaggerDocument = JSON.parse(fs.readFileSync(swaggerPath, 'utf-8'));
+  console.log('✅ swagger.json loaded successfully');
+  console.log('📊 Swagger document keys:', Object.keys(swaggerDocument));
+
+  // Додамо middleware з додатковим логуванням
+  app.use(
+    '/api-docs',
+    (req, res, next) => {
+      console.log('🔄 Swagger UI middleware called for:', req.originalUrl);
+      next();
+    },
+    swaggerUi.serve,
+    (req, res, next) => {
+      console.log('✅ Swagger UI serving for:', req.originalUrl);
+      next();
+    },
+    swaggerUi.setup(swaggerDocument),
+  );
+
+  console.log('✅ Swagger UI configured at /api-docs');
+} catch (error) {
+  console.error('❌ Failed to setup Swagger UI:', error.message);
+  console.error('Error stack:', error.stack);
+
+  // Fallback з логуванням
+  app.use(
+    '/api-docs',
+    (req, res, next) => {
+      console.log('🔄 Fallback Swagger UI called for:', req.originalUrl);
+      next();
+    },
+    swaggerUi.serve,
+    swaggerUi.setup({}),
+  );
+
+  console.log('⚠️ Using empty Swagger UI as fallback');
+}
+
+// Логування запитів
+app.use((req, res, next) => {
+  console.log('📨 Incoming request:', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    time: new Date().toISOString(),
+  });
+  next();
+});
+
+// Після Swagger UI додайте перевірку
+app.use((req, res, next) => {
+  console.log('🔍 Request reached main middleware:', req.originalUrl);
+  next();
+});
+
 // Підключення роутів
 app.use('/auth', authRouter);
 app.use('/contacts', contactsRouter);
@@ -191,6 +279,9 @@ const startServer = async () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`🌐 Client URL: ${process.env.CLIENT_URL}`);
       logger.info(`🗄️  Database: ${process.env.MONGODB_DB}`);
+      logger.info(
+        `📚 Swagger UI available at http://localhost:${PORT}/api-docs`,
+      );
       logger.info('Available routes:');
       logger.info('- POST /auth/register');
       logger.info('- POST /auth/login');
@@ -203,6 +294,7 @@ const startServer = async () => {
       logger.info('- POST /contacts');
       logger.info('- PATCH /contacts/:id');
       logger.info('- GET /health (health check)');
+      logger.info('- GET /api-docs (Swagger UI)');
     });
 
     const gracefulShutdown = async (signal) => {

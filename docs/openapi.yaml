@@ -1,0 +1,38 @@
+openapi: 3.1.0
+info:
+  version: 1.0.0
+  title: Contacts API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  description: API for managing contacts with authentication
+tags:
+  - name: Contacts
+    description: Operations about contacts
+  - name: Auth
+    description: Authentication operations
+servers:
+  - url: http://localhost:3000
+  - url: https://nodejs-hw-mongodb-j5lf.onrender.com/
+paths:
+  /contacts/{id}:
+    get:
+      $ref: '../swagger/paths/contacts/{id}/get.yaml'
+    patch:
+      $ref: '../swagger/paths/contacts/{id}/patch.yaml'
+    delete:
+      $ref: '../swagger/paths/contacts/{id}/delete.yaml'
+  /contacts:
+    get:
+      $ref: '../swagger/paths/contacts/get.yaml'
+    post:
+      $ref: '../swagger/paths/contacts/post.yaml'
+  /auth/register:
+    $ref: '../swagger/paths/auth/register/post.yaml'
+  /auth/login:
+    $ref: '../swagger/paths/auth/login/post.yaml'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
