@@ -27,10 +27,10 @@ paths:
       $ref: '../swagger/paths/contacts/get.yaml'
     post:
       $ref: '../swagger/paths/contacts/post.yaml'
-  /auth/register:
-    $ref: '../swagger/paths/auth/register/post.yaml'
-  /auth/login:
-    $ref: '../swagger/paths/auth/login/post.yaml'
+  # /auth/register:
+  #   $ref: '../swagger/paths/auth/register/post.yaml'
+  # /auth/login:
+  #   $ref: '../swagger/paths/auth/login/post.yaml'
 components:
   securitySchemes:
     bearerAuth:

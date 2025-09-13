@@ -1,4 +1,3 @@
-# redocly.yaml
 apis:
   sample@v1:
     root: docs/openapi.yaml

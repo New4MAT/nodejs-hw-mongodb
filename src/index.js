@@ -122,7 +122,7 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Налаштування Swagger UI - ВИНЕСЕНО З ФУНКЦІЇ START_SERVER!
+// Налаштування Swagger UI
 try {
   const swaggerPath = path.join(__dirname, '..', 'docs', 'swagger.json');
   console.log('🔍 Looking for swagger.json at:', swaggerPath);
@@ -185,6 +185,22 @@ app.use((req, res, next) => {
     time: new Date().toISOString(),
   });
   next();
+});
+
+// Обробник кореневого шляху
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Contacts API працює',
+    version: '1.0.0',
+    documentation: `${req.protocol}://${req.get('host')}/api-docs`,
+    health: `${req.protocol}://${req.get('host')}/health`,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Обробник для favicon
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
 });
 
 // Підключення роутів
