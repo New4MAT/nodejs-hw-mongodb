@@ -1,0 +1,82 @@
+tags:
+  - Contacts
+summary: Create new contact
+operationId: createContact
+description: 'Create a new contact with optional photo'
+security:
+  - bearerAuth: []
+requestBody:
+  content:
+    multipart/form-data:
+      schema:
+        type: object
+        required:
+          - name
+          - phoneNumber
+          - contactType
+        properties:
+          name:
+            type: string
+            example: 'John Doe'
+          phoneNumber:
+            type: string
+            example: '+380501234567'
+          email:
+            type: string
+            example: 'john@example.com'
+          contactType:
+            type: string
+            enum: ['work', 'home', 'personal']
+            example: 'personal'
+          isFavourite:
+            type: boolean
+            example: false
+          photo:
+            type: string
+            format: binary
+responses:
+  '201':
+    description: 'Contact created successfully'
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - status
+            - message
+            - data
+          properties:
+            status:
+              type: integer
+              example: 201
+            message:
+              type: string
+              example: 'Contact created successfully'
+            data:
+              $ref: '../../../swagger/components/schemas/contact.yaml'
+  '400':
+    description: 'Validation error'
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            status:
+              type: integer
+              example: 400
+            message:
+              type: string
+              example: 'Validation failed'
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: 'name'
+                  message:
+                    type: string
+                    example: 'Name is required'
+  '401':
+    $ref: '../../../swagger/components/responses/401.yaml'
